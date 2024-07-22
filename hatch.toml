@@ -1,0 +1,12 @@
+[build]
+packages = [
+    "acoustic_emission_analysis"
+]
+
+
+[envs.default]
+path = ".venv"
+dependencies = [
+    "pytest ~= 7.0",
+    "matplotlib ~= 3.6",
+]
