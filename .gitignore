@@ -492,3 +492,4 @@ fabric.properties
 /dataSources/
 /dataSources.local.xml
 /.idea/.gitignore
+/.idea/acoustic-emission-analysis-wfs-to-wav.iml

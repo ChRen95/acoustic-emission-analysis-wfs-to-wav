@@ -3,7 +3,6 @@ packages = [
     "acoustic_emission_analysis"
 ]
 
-
 [envs.default]
 path = ".venv"
 dependencies = [

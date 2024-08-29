@@ -1,22 +1,15 @@
 [project]
-name = "acustic-emission-analysis"
-version = "0.1"
-description = "A updated and adjusted forked project for importing acoustic emission analysis data."
+name = "acoustic-emission-analysis-wfs-to-wav"
+version = "0.1a"
+description = "A updated and adjusted forked project for importing acoustic emission analysis data from wfs files and converting them to wav files."
 authors = [
     { name = "Christoph Renzing", email = "christoph.renzing@imf.tu-freiberg.de" },
 ]
 license = "BSD-3-Clause"
 requires-python = ">=3.9, <4.0"
 dependencies = [
-    "jupyter",
-    "jupyterlab",
-    "ipympl",
-    "pandas",
     "numpy",
     "scipy",
-    "wave",
-    "matplotlib",
-    "tqdm"
 ]
 
 
