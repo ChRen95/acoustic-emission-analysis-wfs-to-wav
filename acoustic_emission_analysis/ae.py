@@ -1,113 +1,15 @@
-import locale
+import os
+import time
+import math
+import warnings
+import traceback
+
 import numpy as np
 
+from scipy.signal import welch
 from collections import namedtuple
-
-
-def xpan(ax=None):
-    """
-    Activates matplotlib pan/zoom tool, constrained to x direction for current axes.
-    """
-
-    def drag_pan(self, button, key, x, y):
-        return self.__class__.drag_pan(self, button, "x" if key is None else key, x, y)
-
-    if ax is None:
-        from matplotlib.pyplot import gca
-        ax = gca()
-
-    import types
-    ax.drag_pan = types.MethodType(drag_pan, ax)
-    ax.figure.canvas.toolbar.pan()
-
-
-try:
-    from matplotlib.ticker import ScalarFormatter
-except ImportError:
-    pass
-else:
-    class TimeFormatter(ScalarFormatter):
-        def format_data(self, value):
-            'return a formatted string representation of a number'
-            if self._useLocale:
-                s = locale.format_string(self.format, (value,))
-            else:
-                s = self.format % value
-            s = self._formatSciNotation(s)
-            return self.fix_minus(s)
-
-        def format_data_short(self, value):
-            more = 1
-            s = '%1.*f' % (int(self.format[3:-1]) + more, value)
-            # return s[:-more] + " " + s[-more:]
-            return s
-
-
-def loghist(data, bins=50, range=None, density=None):
-    """
-    Creates logarithmically spaced bins and calls :func:`numpy.histogram`.
-
-    :param ndarray data:
-    :param int bins: numer of bins
-    :param tuple range: histogram range, by default determined from minimim and maximum in data
-    :return: (hist, bins) - histogram counts and bin boundaries 
-    """
-    data = np.asarray(data)
-    if range is None:
-        a, b = data.min(), data.max()
-        if a == 0:
-            a = b / 1000.
-    else:
-        a, b = range
-    bins = np.exp(np.linspace(np.log(a), np.log(b), bins))
-    hist, bins = np.histogram(data, bins, density=density)
-    return hist, bins
-
-
-def random_power(xmin, a, size=1):
-    return xmin * (1 - np.random.uniform(size=size)) ** (1. / (a + 1))
-
-
-def bin_centers(bins):
-    return (bins[1:] + bins[:-1]) / 2.
-
-
-def join_bins(bins, counts, mincount=10):
-    newbins, newcounts = [bins[0]], []
-    s = 0
-    for a, b in zip(counts, bins[1:]):
-        s += a
-        if s < mincount:
-            continue
-        newcounts.append(s)
-        newbins.append(b)
-        s = 0
-    if s > 0:
-        newcounts.append(s)
-        newbins.append(b)
-    return np.asarray(newbins), np.asarray(newcounts)
-
-
-def cdf(data):
-    return np.sort(data), np.arange(data.size, 0, -1)
-
-
-def mle(xmin, data):
-    d = data[data >= xmin]
-    a = 1 - data.size / sum(np.log(xmin / d))
-    return -a, (a - 1) / np.sqrt(d.size)
-
-
-def hist(data, bins=50, range=None, ax=None, density=None):
-    if ax is None:
-        from matplotlib.pyplot import gca
-        ax = gca()
-
-    hist, bins = loghist(data, bins=bins, range=range, density=density)
-    l, = ax.plot((bins[1:] + bins[:-1]) / 2, hist, "o")
-    ax.loglog()
-    ax.grid(True)
-    return hist, bins, l
+from collections import OrderedDict
+from struct import unpack_from, calcsize
 
 
 def count(data, thresh):
@@ -120,8 +22,6 @@ Event.energy = property(lambda e: (e.data ** 2).sum())
 Event.max = property(lambda e: e.data.max())
 Event.rise_time = property(lambda e: np.argmax(e.data))
 Event.count = lambda e, thresh: count(e.data, thresh)
-
-from scipy.signal import welch
 
 Event.psd = lambda e, **kwargs: welch(e.data, **kwargs)
 
@@ -156,7 +56,6 @@ class Data:
 
     def iter_blocks(self, start=0, stop=float('inf'), channel=slice(None)):
 
-        import sys, time
         start_time = time.time()
         for pos, raw in self.raw_iter_blocks(start, stop):
             self.check_block(pos, raw)
@@ -166,7 +65,6 @@ class Data:
         n_blocks = file_size // self.block_dtype.itemsize
         rest = file_size % self.block_dtype.itemsize
         if rest:
-            import warnings
             warnings.warn("{} bytes at the end of file won't fit into blocks".format(rest))
 
         tmp = self.get_block_data(np.empty(0, self.block_dtype))
@@ -213,13 +111,13 @@ class Data:
         return mins, maxs
 
     def resample(self, range, channel=0, num=768):
-        from math import floor, ceil
+
         def clip(x, a, b):
             return min(max(x, a), b)
 
         a, b = range
-        a = int(floor(a / self.timescale))
-        b = int(ceil(b / self.timescale)) + 1
+        a = int(math.floor(a / self.timescale))
+        b = int(math.ceil(b / self.timescale)) + 1
         s = max((b - a) // num, 1)
         # print "resample", s, b-a
 
@@ -257,29 +155,6 @@ class Data:
         maxs.max(axis=-1, out=y[1::2])
         y *= self.datascale[channel]
         return x, y
-
-    def plot(self, channel=0, ax=None, **kwargs):
-        if ax is None:
-            from matplotlib.pyplot import gca
-            ax = gca()
-        line, = ax.plot([], [], **kwargs)
-
-        def update(ax):
-            try:
-                x, y = self.resample(ax.viewLim.intervalx, channel=channel)
-                line.set_data(x, y)
-                ax.figure.canvas.draw_idle()
-            except:
-                import traceback
-                traceback.print_exc()
-
-        ax.callbacks.connect('xlim_changed', update)
-        ax.set_xlim(0, (self.size - 1) * self.timescale)
-        ax.relim()
-        ax.autoscale_view(scalex=False)
-        ax.xaxis.set_major_formatter(TimeFormatter())
-
-        return line
 
     def get_events(self, thresh, hdt=0.001, dead=0.001, pretrig=0.001, channel=0, limit=0):
         raw_thresh = int(thresh / self.datascale[channel])
@@ -326,7 +201,7 @@ class Data:
             try:
                 events.append(_get_event(*args))
             except:
-                import traceback
+
                 traceback.print_exc()
 
         last = None
@@ -373,9 +248,6 @@ class Data:
         w.close()
 
 
-from collections import OrderedDict
-
-
 class PrettyOrderedDict(OrderedDict):
     def __str__(d, prefix=""):
         indent = "    "
@@ -396,7 +268,6 @@ class ContigousBase(Data):
         pass
 
     def raw_iter_blocks(self, start=0, stop=float('inf')):
-        import math
 
         buffer = np.empty(math.ceil(8 * 1024 * 1024 / self.block_dtype.itemsize), self.block_dtype)
         block_size = self.get_block_data(buffer)[0, ..., 0].size
@@ -423,7 +294,6 @@ class ContigousBase(Data):
             self.check_rest(buffer.view('B')[read - rest:read])
 
     def check_rest(self, data):
-        import warnings
         warnings.warn("{} bytes left in the buffer".format(data.size))
 
 
@@ -433,7 +303,6 @@ class WAV(ContigousBase):
         self.fname = fname
         self.checks = kwargs.get("checks", False)
 
-        import os
         with open(self.fname, "rb") as fh:
             self._offset, size = self.parse_meta(fh.read(1024))
 
@@ -451,7 +320,7 @@ class WAV(ContigousBase):
         self.calc_sizes(size)
 
     def parse_meta(self, data):
-        from struct import unpack_from
+
         self.meta = PrettyOrderedDict()
         offset = 0
         while offset < len(data):
@@ -475,7 +344,7 @@ class WAV(ContigousBase):
                 return offset + 8, size
 
             else:
-                import warnings
+
                 warnings.warn("unknown chunk {!r}".format(chunk))
                 offset += 8 + size
 
@@ -488,7 +357,6 @@ class WFS(ContigousBase):
         self.fname = fname
         self.checks = kwargs.get("checks", False)
 
-        import os
         with open(self.fname, 'rb') as fh:
             file_size = os.fstat(fh.fileno()).st_size
             self._offset = self.parse_meta(fh.read(1024), unknown_meta=kwargs.get("unknown_meta", False))
@@ -518,7 +386,7 @@ class WFS(ContigousBase):
         self.calc_sizes(file_size - self._offset)
 
     def parse_meta(self, data, unknown_meta=False):
-        from struct import unpack_from, calcsize
+
         self.meta = PrettyOrderedDict()
         offset = 0
         while offset < len(data):
@@ -592,5 +460,4 @@ class WFS(ContigousBase):
 
     def check_rest(self, data):
         if not np.all(data == (7, 0, 15, 255, 255, 255, 255, 255, 127)):
-            import warnings
             warnings.warn("{} bytes left in the buffer".format(data.size))
