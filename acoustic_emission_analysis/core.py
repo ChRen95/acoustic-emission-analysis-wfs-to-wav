@@ -223,8 +223,8 @@ class Data:
     def save_wav(self, fname, channel=0, range=(0, float("inf")), rate=None):
         """
         save data to fname as wav file format 
-        channel, data range (in samples) to save can be specfied
-        if rate is not None it overides the sample rate saved into wav
+        channel, data range (in samples) to save can be specified
+        if rate is not None it overrides the sample rate saved into wav
         """
 
         import wave

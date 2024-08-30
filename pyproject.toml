@@ -1,6 +1,6 @@
 [project]
 name = "acoustic-emission-analysis-wfs-to-wav"
-version = "0.1a"
+version = "0.2a"
 description = "A updated and adjusted forked project for importing acoustic emission analysis data from wfs files and converting them to wav files."
 authors = [
     { name = "Christoph Renzing", email = "christoph.renzing@imf.tu-freiberg.de" },
